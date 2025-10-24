@@ -9,23 +9,33 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import java.util.HashMap;
 import java.util.Map;
 
-// VULNERABILITY(API7): overly verbose error responses
+// FIXED(API7: Security Misconfiguration) - reduced error detail in responses, safe logging
 @ControllerAdvice
 public class GlobalErrorHandler {
 
+    // Generic error handler (safe response)
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<?> all(Exception e) {
+    public ResponseEntity<?> handleGeneric(Exception e) {
+        // Log detailed error internally for debugging
+        System.err.println("Internal Server Error: " + e.getClass().getName() + " - " + e.getMessage());
+
+        // Send a generic response to clients
         Map<String, String> errorMap = new HashMap<>();
-        errorMap.put("error", e.getClass().getName());
-        errorMap.put("message", e.getMessage());
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(errorMap);
+        errorMap.put("error", "Internal server error occurred");
+        errorMap.put("hint", "Please contact support if the issue persists");
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorMap);
     }
 
+    // Database error handler (safe output)
     @ExceptionHandler(DataAccessException.class)
-    public ResponseEntity<?> db(DataAccessException e) {
+    public ResponseEntity<?> handleDatabase(DataAccessException e) {
+        // Log technical details internally
+        System.err.println("Database Error: " + e.getMessage());
+
+        // Return safe, non-verbose message
         Map<String, String> errorMap = new HashMap<>();
-        errorMap.put("dbError", e.getMessage());
-        return ResponseEntity.status(500).body(errorMap);
+        errorMap.put("error", "A database error occurred");
+        errorMap.put("hint", "Please try again later");
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorMap);
     }
 }
