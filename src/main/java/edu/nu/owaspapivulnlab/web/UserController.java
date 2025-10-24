@@ -21,7 +21,7 @@ public class UserController {
         this.users = users;
     }
 
-    // FIXED(API1: BOLA/IDOR) - ensure users can only access their own info unless admin
+    // FIXED(API1: BOLA/IDOR)
     @GetMapping("/{id}")
     public ResponseEntity<?> get(@PathVariable Long id, Authentication auth) {
         AppUser me = users.findByUsername(auth.getName()).orElse(null);
@@ -31,12 +31,10 @@ public class UserController {
 
         AppUser target = users.findById(id).orElseThrow(() -> new RuntimeException("User not found"));
 
-        // Only the owner or admin can access the user info
         if (!me.isAdmin() && !me.getId().equals(target.getId())) {
             return ResponseEntity.status(403).body("Forbidden - you can only view your own profile");
         }
 
-        // Avoid exposing password
         AppUser safeUser = new AppUser();
         safeUser.setId(target.getId());
         safeUser.setUsername(target.getUsername());
@@ -44,12 +42,12 @@ public class UserController {
         return ResponseEntity.ok(safeUser);
     }
 
-    // FIXED(API6: Mass Assignment) - prevent clients from setting role/isAdmin directly
+    // FIXED(API6: Mass Assignment)
     @PostMapping
     public ResponseEntity<?> create(@Valid @RequestBody AppUser body) {
         AppUser newUser = new AppUser();
         newUser.setUsername(body.getUsername());
-        newUser.setPassword(body.getPassword()); 
+        newUser.setPassword(body.getPassword());
         newUser.setEmail(body.getEmail());
         newUser.setRole("USER");
         newUser.setAdmin(false);
@@ -60,13 +58,37 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
-    // VULNERABILITY(API9: Improper Inventory + API8 Injection style)
+    // FIXED(API8 & API9): prevent injection-like search and limit returned fields
     @GetMapping("/search")
-    public List<AppUser> search(@RequestParam String q) {
-        return users.search(q);
+    public ResponseEntity<?> search(@RequestParam String q, Authentication auth) {
+        AppUser me = users.findByUsername(auth.getName()).orElse(null);
+        if (me == null) {
+            return ResponseEntity.status(401).body("Unauthorized - please log in");
+        }
+
+        // --- Input validation ---
+        if (q == null || q.trim().isEmpty() || q.length() > 50) {
+            return ResponseEntity.badRequest().body("Invalid search query");
+        }
+
+        // Sanitize input (basic protection from wildcard abuse)
+        String safeQuery = q.replaceAll("[^a-zA-Z0-9@._-]", "");
+
+        List<AppUser> results = users.search(safeQuery);
+
+        // Return limited info to prevent data exposure
+        List<Map<String, Object>> safeResults = results.stream().map(u -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", u.getId());
+            map.put("username", u.getUsername());
+            map.put("email", u.getEmail());
+            return map;
+        }).collect(Collectors.toList());
+
+        return ResponseEntity.ok(safeResults);
     }
 
-    // FIXED(API3: Excessive Data Exposure) - return limited info only (no passwords, roles, etc.)
+    // FIXED(API3: Excessive Data Exposure)
     @GetMapping
     public ResponseEntity<?> list(Authentication auth) {
         AppUser me = users.findByUsername(auth.getName()).orElse(null);
@@ -85,7 +107,7 @@ public class UserController {
         return ResponseEntity.ok(safeUsers);
     }
 
-    // FIXED(API5: Broken Function Level Authorization) - restrict delete to admins only
+    // FIXED(API5: Broken Function Level Authorization)
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable Long id, Authentication auth) {
         AppUser me = users.findByUsername(auth.getName()).orElse(null);
