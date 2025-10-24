@@ -23,14 +23,27 @@ public class AccountController {
         this.accounts = accounts;
         this.users = users;
     }
+    // FIXED(API1: BOLA) - added ownership check so only the account owner (or admin) can view balance
+@GetMapping("/{id}/balance")
+public ResponseEntity<?> balance(@PathVariable Long id, Authentication auth) {
+    Account a = accounts.findById(id).orElseThrow(() -> new RuntimeException("Account not found"));
 
-    // VULNERABILITY(API1: BOLA) - no check whether account belongs to caller
-    @GetMapping("/{id}/balance")
-    public Double balance(@PathVariable Long id) {
-        Account a = accounts.findById(id).orElseThrow(() -> new RuntimeException("Account not found"));
-        return a.getBalance();
+    // get the logged-in user (from JWT or session)
+    AppUser me = users.findByUsername(auth.getName()).orElse(null);
+
+    // if not found or not logged in
+    if (me == null) {
+        return ResponseEntity.status(401).body("Unauthorized - please log in");
     }
 
+    // check if this account belongs to the logged-in user
+    if (!a.getOwnerUserId().equals(me.getId())) {
+        return ResponseEntity.status(403).body("Forbidden - you can only view your own account balance");
+    }
+
+    // return the balance
+    return ResponseEntity.ok(a.getBalance());
+}
     // VULNERABILITY(API4: Unrestricted Resource Consumption) - no rate limiting on transfer
     // VULNERABILITY(API5/1): no authorization check on owner
     @PostMapping("/{id}/transfer")
