@@ -1,10 +1,9 @@
 package edu.nu.owaspapivulnlab.model;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Email;
 import lombok.*;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 @Entity 
 @Data 
@@ -12,26 +11,22 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @AllArgsConstructor 
 @Builder
 public class AppUser {
-
     @Id 
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @NotBlank
+    @Column(unique = true)
     private String username;
 
-    // FIXED(API3: Excessive Data Exposure)
     @NotBlank
-    @JsonIgnore // prevents password from being exposed in API responses
-    private String password; // should always be stored as BCrypt hash
+    private String password;
 
-    // FIXED(API6: Mass Assignment)
-    // Mark as read-only so client cannot bind these fields
-    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
-    private String role = "USER";   // default role safely set on server
-
-    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
-    private boolean isAdmin = false; // only controlled by admin logic
+    @Builder.Default
+    private String role = "USER";
+    
+    @Builder.Default
+    private boolean isAdmin = false;
 
     @Email
     private String email;
